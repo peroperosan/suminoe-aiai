@@ -6,7 +6,7 @@ import datetime
 import re
 
 # ==========================================================
-# ページ設定（スマホ完全対応）
+# ページ設定
 # ==========================================================
 st.set_page_config(page_title="住之江AI", page_icon="🚤", layout="centered")
 
@@ -14,14 +14,15 @@ st.set_page_config(page_title="住之江AI", page_icon="🚤", layout="centered"
 st.markdown("""
 <style>
     .big-font { font-size: 20px !important; font-weight: bold; }
-    .stButton>button { font-size: 20px !important; font-weight: bold; padding: 10px 0; }
-    /* 余白調整 */
+    .stButton>button { font-size: 20px !important; font-weight: bold; padding: 10px 0; width: 100%; }
     .block-container { padding-top: 2rem; padding-bottom: 2rem; }
+    /* テーブルの文字を少し大きく */
+    td { font-size: 16px !important; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================================
-# 関数定義（ロジック変更なし）
+# 関数定義
 # ==========================================================
 HEADERS = {'User-Agent': 'Mozilla/5.0'}
 SUPERSTARS = ["茅原悠紀", "関浩哉", "峰竜太", "池田浩二", "毒島誠", "桐生順平", "白井英治", "馬場貴也", "石野貴之"]
@@ -100,25 +101,20 @@ def get_full_race_data(place_cd, race_no, date_str):
     return racer_data, weather_text, course_list, stab
 
 # ==========================================================
-# 画面レイアウト（ここを変更）
+# UIメイン
 # ==========================================================
 st.title("🚤 住之江AI予想")
 
-# サイドバーを廃止し、画面上部に2列で配置
+# 日付・レース選択（上部配置）
 col1, col2 = st.columns(2)
-
 with col1:
-    # 日付選択
     date_input = st.date_input("📅 日付", datetime.date.today())
-
 with col2:
-    # レース選択
     race_no = st.slider("🏁 レース", 1, 12, 12)
 
-# 実行ボタン（幅いっぱいに）
-if st.button("🔥 AI予想を実行する 🔥", type="primary", use_container_width=True):
+# 実行ボタン
+if st.button("🔥 AI予想を実行する 🔥", type="primary"):
     
-    # APIキーチェック
     if "GOOGLE_API_KEY" in st.secrets:
         api_key = st.secrets["GOOGLE_API_KEY"]
     else:
@@ -133,17 +129,14 @@ if st.button("🔥 AI予想を実行する 🔥", type="primary", use_container_
     
     if racers:
         course_text = "→".join(courses) if courses else "枠なり"
-        
-        # プロンプトデータ作成
         table_str = ""
         for r in racers:
             if not r['is_absent']:
                 table_str += f"|{r['no']}|{r['name']}|{r['class']}|全{r['nation_rate']}|当{r['local_rate']}|機{r['motor_rate']}|S{r['st']}|\n"
 
+        # ★ここを修正：表形式での出力を強制
         prompt = f"""
         あなたはボートレース住之江のAIです。
-        スマホで見やすいように、**表を使わず、箇条書きと太字**で大きく結論を出してください。
-
         【条件】住之江{race_no}R({time_status}) 天候:{weather} 進入:{course_text}
         【出走データ】\n{table_str}
 
@@ -154,10 +147,18 @@ if st.button("🔥 AI予想を実行する 🔥", type="primary", use_container_
         4.SS特例:【SS】選手は必ず3着内。
         5.点数:基本6点。穴狙い最大8点。
 
-        【出力デザイン】
-        - 結論（買い目）を一番上に。
-        - 買い目は **1-2-3** のように太字で大きく。
-        - 理由や展開予想は短く。
+        【重要：出力形式】
+        **必ず以下の表形式で結論を出してください。**
+        
+        ### 🎯 最終結論
+        | 狙い | 買い目 (3連単) |
+        | :--- | :--- |
+        | **【本線】** | **1-2-3 (※厚め), 1-2-4** |
+        | **【抑え】** | **1-3-2, ...** |
+        | **【 穴 】** | **...** |
+        
+        **合計: X点**
+        **根拠**: (短く1行で)
         """
         
         with st.spinner("🧠 AI思考中..."):
@@ -166,15 +167,13 @@ if st.button("🔥 AI予想を実行する 🔥", type="primary", use_container_
                 model = genai.GenerativeModel('gemini-2.0-flash')
                 res = model.generate_content(prompt)
                 
-                # 結果表示
                 st.markdown("---")
                 st.subheader("🎯 最終結論")
-                st.info(res.text)
+                st.markdown(res.text) # infoではなくmarkdownで表を綺麗に出す
                 st.markdown("---")
 
             except Exception as e: st.error(f"エラー: {e}")
         
-        # データ確認用（隠しておく）
         with st.expander("📊 出走表データを見る"):
             st.write(f"環境: {weather} / 安定板: {stab}")
             st.table([{
